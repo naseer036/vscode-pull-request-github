@@ -43,16 +43,19 @@ export class CurrentIssue {
 		return this.issueModel;
 	}
 
-	public async startWorking() {
+	public async startWorking(): Promise<boolean> {
 		try {
 			this.repoDefaults = await this.manager.getPullRequestDefaults();
+			if (await this.createIssueBranch()) {
+				await this.setCommitMessageAndGitEvent();
+				this.setStatusBar();
+				return true;
+			}
 		} catch (e) {
 			// leave repoDefaults undefined
 			vscode.window.showErrorMessage('There is no remote. Can\'t start working on an issue.');
 		}
-		await this.createIssueBranch();
-		await this.setCommitMessageAndGitEvent();
-		this.setStatusBar();
+		return false;
 	}
 
 	public dispose() {
@@ -120,23 +123,24 @@ export class CurrentIssue {
 		return vscode.workspace.getConfiguration(ISSUES_CONFIGURATION).get<string>(BRANCH_NAME_CONFIGURATION) ?? this.getBasicBranchName(await this.getUser());
 	}
 
-	private async createIssueBranch(): Promise<void> {
+	private async createIssueBranch(): Promise<boolean> {
 		const createBranchConfig = this.shouldPromptForBranch ? 'prompt' : <string>vscode.workspace.getConfiguration(ISSUES_CONFIGURATION).get(BRANCH_CONFIGURATION);
 		if (createBranchConfig === 'off') {
-			return;
+			return true;
 		}
 		const state: IssueState = this.stateManager.getSavedIssueState(this.issueModel.number);
 		this._branchName = this.shouldPromptForBranch ? undefined : state.branch;
 		if (!this._branchName) {
+			const branchNameConfig = await variableSubstitution(await this.ensureBranchTitleConfigMigrated(), this.issue, undefined, await this.getUser());
 			if (createBranchConfig === 'on') {
-				const branchNameConfig = await this.ensureBranchTitleConfigMigrated();
-				this._branchName = await variableSubstitution(branchNameConfig, this.issue, undefined, await this.getUser());
+				this._branchName = branchNameConfig;
 			} else {
-				this._branchName = await vscode.window.showInputBox({ placeHolder: `issue${this.issueModel.number}`, prompt: 'Enter the label for the new branch.' });
+				this._branchName = await vscode.window.showInputBox({ value: branchNameConfig, prompt: 'Enter the label for the new branch.' });
 			}
 		}
 		if (!this._branchName) {
-			this._branchName = this.getBasicBranchName(await this.getUser());
+			// user has cancelled
+			return false;
 		}
 
 		state.branch = this._branchName;
@@ -148,7 +152,7 @@ export class CurrentIssue {
 			if (this._branchName === basicBranchName) {
 				vscode.window.showErrorMessage(`Unable to checkout branch ${this._branchName}. There may be file conflicts that prevent this branch change.`);
 				this._branchName = undefined;
-				return;
+				return false;
 			}
 			vscode.window.showErrorMessage(`Unable to create branch with name ${this._branchName}. Using ${basicBranchName} instead.`);
 			this._branchName = basicBranchName;
@@ -156,6 +160,7 @@ export class CurrentIssue {
 			this.stateManager.setSavedIssueState(this.issueModel, state);
 			await this.createOrCheckoutBranch(this._branchName);
 		}
+		return true;
 	}
 
 	public async getCommitMessage(): Promise<string | undefined> {
