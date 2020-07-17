@@ -581,12 +581,7 @@ export class GitHubRepository implements vscode.Disposable {
 				}
 			});
 			Logger.debug(`Fetch issue ${id} - done`, GitHubRepository.ID);
-			let githubRepository: GitHubRepository = this;
-			const parsedIssue = parseGraphQLPullRequest(data, this);
-			if ((githubRepository.remote.url !== parsedIssue.repositoryUrl) && (parsedIssue.repositoryName && parsedIssue.repositoryUrl)) {
-				githubRepository = new GitHubRepository(new Remote(parsedIssue.repositoryName, parsedIssue.repositoryUrl, new Protocol(parsedIssue.repositoryUrl)), this._credentialStore);
-			}
-			return new IssueModel(githubRepository, remote, parsedIssue);
+			return new IssueModel(this, remote, parseGraphQLPullRequest(data, this));
 		} catch (e) {
 			Logger.appendLine(`GithubRepository> Unable to fetch PR: ${e}`);
 			return;

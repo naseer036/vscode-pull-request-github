@@ -691,12 +691,8 @@ export function getRelatedUsersFromTimelineEvents(timelineEvents: Common.Timelin
 
 export function parseGraphQLViewerPermission(viewerPermissionResponse: GraphQL.ViewerPermissionResponse): ViewerPermission {
 	if (viewerPermissionResponse && viewerPermissionResponse.repository.viewerPermission) {
-		switch (viewerPermissionResponse.repository.viewerPermission) {
-			case ViewerPermission.Admin: return ViewerPermission.Admin;
-			case ViewerPermission.Maintain: return ViewerPermission.Maintain;
-			case ViewerPermission.Read: return ViewerPermission.Read;
-			case ViewerPermission.Triage: return ViewerPermission.Triage;
-			case ViewerPermission.Write: return ViewerPermission.Write;
+		if ((<string[]>Object.values(ViewerPermission)).includes(viewerPermissionResponse.repository.viewerPermission)) {
+			return <ViewerPermission>viewerPermissionResponse.repository.viewerPermission;
 		}
 	}
 	return ViewerPermission.Unknown;
